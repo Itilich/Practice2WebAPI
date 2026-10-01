@@ -1,4 +1,6 @@
 
+using Practice_2WebAPI.Data;
+
 namespace Practice_2WebAPI
 {
     public class Program
@@ -7,6 +9,7 @@ namespace Practice_2WebAPI
         {
             var builder = WebApplication.CreateBuilder(args);
 
+            builder.Services.AddDbContext<WebAPIContext>();
             // Add services to the container.
 
             builder.Services.AddControllers();
