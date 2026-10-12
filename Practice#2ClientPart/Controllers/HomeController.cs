@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
+using Practice_2ClientPart.Data;
 using Practice_2ClientPart.Models;
 using System.Diagnostics;
+using System.Text.Json;
 
 namespace Practice_2ClientPart.Controllers
 {
@@ -12,10 +14,19 @@ namespace Practice_2ClientPart.Controllers
         {
             _logger = logger;
         }
-
-        public IActionResult Index()
+        [HttpGet]
+        public async Task<IActionResult> Index()
         {
-            return View();
+            var httpClient = new HttpClient();
+            var response = await httpClient.GetAsync("https://localhost:7210/api/Category");
+            var responseText = await response.Content.ReadAsStringAsync();
+            var jsonOptions = new JsonSerializerOptions()
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var responseData = JsonSerializer.Deserialize<List<Category>>(responseText, jsonOptions);
+
+            return View(responseData);
         }
 
         public IActionResult Privacy()
