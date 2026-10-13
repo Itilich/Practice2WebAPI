@@ -1,1 +1,46 @@
-﻿
+﻿@model Practice_2ClientPart.Models.NewCategoryDto
+
+@{
+    ViewData["Title"] = "Редактирование категории";
+    var originalName = ViewBag.OriginalName as string ?? string.Empty;
+}
+
+<h1 class="mb-4">Редактирование категории</h1>
+<p class="text-muted">Исходное имя: <strong>@originalName</strong></p>
+
+<div class="row">
+    <div class="col-md-6">
+        <form asp-action="EditCategory"
+              asp-route-name="@originalName"
+              method="post">
+
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-2"></div>
+
+            <div class="mb-3">
+                <label asp-for="Name" class="form-label"></label>
+                <input asp-for="Name" class="form-control" />
+                <span asp-validation-for="Name" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Description" class="form-label"></label>
+                <textarea asp-for="Description" class="form-control" rows="3"></textarea>
+                <span asp-validation-for="Description" class="text-danger"></span>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary"
+                        onclick="return confirm('Сохранить изменения?');">
+                    Сохранить
+                </button>
+                <a asp-action="Index" class="btn btn-secondary">Отмена</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+}

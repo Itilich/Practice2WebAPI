@@ -77,7 +77,7 @@ namespace Practice_2WebAPI.Controllers
             var category = await _context.Categories.FirstOrDefaultAsync(c => c.Name == name);
             if (category is null) return NotFound();
 
-            patchDoc.ApplyTo(category, ModelState);   // ← применяются только перечисленные операции
+            patchDoc.ApplyTo(category, ModelState);
             if (!ModelState.IsValid) return BadRequest(ModelState);
 
             await _context.SaveChangesAsync();

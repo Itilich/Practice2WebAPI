@@ -2,6 +2,7 @@
 
 @{
     ViewData["Title"] = "Каталог категорий";
+    var searchName = ViewBag.SearchName as string;
 }
 @if (TempData["Error"] != null)
 {
@@ -19,11 +20,29 @@
     </div>
 }
 
-<h1 class="mb-4">Каталог категорий</h1>
-<a asp-action="NewCategory" class="btn btn-success">
-    + Добавить категорию
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="mb-0">Каталог категорий</h1>
+    <a asp-action="NewCategory" class="btn btn-success">+ Добавить категорию</a>
+</div>
 
-</a>
+<form asp-action="Index" method="get" class="row g-2 mb-4">
+    <div class="col-md-6">
+        <input type="text"
+               name="name"
+               value="@searchName"
+               class="form-control"
+               placeholder="Поиск категории по имени (точное совпадение)" />
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Найти</button>
+    </div>
+    @if (!string.IsNullOrWhiteSpace(searchName))
+    {
+        <div class="col-auto">
+            <a asp-action="Index" class="btn btn-outline-secondary">Сбросить</a>
+        </div>
+    }
+</form>
 
 @if (Model == null || !Model.Any())
 {
@@ -53,7 +72,7 @@ else
                     <td>@(category.Products?.Count ?? 0)</td>
                     <td>
                         <a class="btn btn-sm btn-outline-warning"
-                           asp-action="Edit"
+                           asp-action="EditCategory"
                            asp-route-name="@category.Name">Изменить</a>
                         <form asp-action="Delete"
                             asp-route-name="@category.Name"

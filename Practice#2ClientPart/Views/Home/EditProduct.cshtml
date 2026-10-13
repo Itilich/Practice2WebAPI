@@ -1,0 +1,60 @@
+﻿@model Practice_2ClientPart.Models.NewProductDto
+
+@{
+    ViewData["Title"] = "Редактирование товара";
+    var originalName = ViewBag.OriginalName as string ?? string.Empty;
+}
+
+<h1 class="mb-4">Редактирование товара</h1>
+<p class="text-muted">Исходное имя: <strong>@originalName</strong></p>
+
+<div class="row">
+    <div class="col-md-6">
+        <form asp-action="EditProduct"
+              asp-route-name="@originalName"
+              method="post">
+
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-2"></div>
+
+            <div class="mb-3">
+                <label asp-for="Name" class="form-label"></label>
+                <input asp-for="Name" class="form-control" />
+                <span asp-validation-for="Name" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="CategoryName" class="form-label"></label>
+                <input asp-for="CategoryName" class="form-control" />
+                <span asp-validation-for="CategoryName" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Description" class="form-label"></label>
+                <textarea asp-for="Description" class="form-control" rows="3"></textarea>
+                <span asp-validation-for="Description" class="text-danger"></span>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label asp-for="Price" class="form-label"></label>
+                    <input asp-for="Price" class="form-control" type="number" step="0.01" />
+                    <span asp-validation-for="Price" class="text-danger"></span>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary"
+                        onclick="return confirm('Сохранить изменения?');">
+                    Сохранить
+                </button>
+                <a asp-action="Products" class="btn btn-secondary">Отмена</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+}
