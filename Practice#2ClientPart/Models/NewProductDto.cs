@@ -15,8 +15,8 @@ namespace Practice_2ClientPart.Models
         [Display(Name = "Цена")]
         public decimal Price { get; set; }
 
-        [Required(ErrorMessage = "Укажите название категории")]
+        [Required(ErrorMessage = "Выберите категорию")]
         [Display(Name = "Категория")]
-        public string CategoryName { get; set; } = string.Empty;
+        public int CategoryId { get; set; }
     }
 }

@@ -1,6 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.JsonPatch;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Practice_2WebAPI.Data;
 using Practice_2WebAPI.DTOs;
@@ -8,31 +6,42 @@ using Swashbuckle.AspNetCore.Annotations;
 
 namespace Practice_2WebAPI.Controllers
 {
-    [Route("api/[controller]")]
     [ApiController]
+    [Route("api/[controller]")]
+    [Produces("application/json")]
     public class CategoryController : ControllerBase
     {
         private readonly WebAPIContext _context;
+
         public CategoryController(WebAPIContext context)
         {
             _context = context;
         }
 
         [HttpGet]
-        [Consumes("application/json")]
-        [SwaggerOperation(Summary = "Список категорий",
-    Description = "Без параметров возвращает все категории. С параметром name — фильтрует по точному совпадению.")]
-        public async Task<ActionResult<IEnumerable<Category>>> GetAll([FromQuery] string? name)
+        [HttpGet("{id:int}")]
+        [SwaggerOperation(
+    Summary = "Категории",
+    Description = "Без id — все категории. С id — конкретная категория.")]
+        [ProducesResponseType(typeof(IEnumerable<Category>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(Category), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult> Get(int? id)
         {
-            var query = _context.Categories
+            if (id.HasValue)
+            {
+                var category = await _context.Categories
+                    .Include(c => c.Products)
+                    .FirstOrDefaultAsync(c => c.Id == id.Value);
+
+                return category is null ? NotFound() : Ok(category);
+            }
+
+            return Ok(await _context.Categories
                 .Include(c => c.Products)
-                .AsQueryable();
-
-            if (!string.IsNullOrWhiteSpace(name))
-                query = query.Where(c => c.Name == name);
-
-            return Ok(await query.ToListAsync());
+                .ToListAsync());
         }
+
         [HttpPost]
         [Consumes("application/json")]
         [SwaggerOperation(Summary = "Создать категорию")]
@@ -52,13 +61,15 @@ namespace Practice_2WebAPI.Controllers
             _context.Categories.Add(category);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetAll), new { name = category.Name }, category);
+            return CreatedAtAction(nameof(Get), new { id = category.Id }, category);
         }
-        [HttpPut("{name}")]
+
+        [HttpPut("{id:int}")]
         [Consumes("application/json")]
-        public async Task<IActionResult> Update(string name, [FromBody] CategoryCreateDto dto)
+        [SwaggerOperation(Summary = "Обновить категорию")]
+        public async Task<IActionResult> Update(int id, [FromBody] CategoryCreateDto dto)
         {
-            var existing = await _context.Categories.FirstOrDefaultAsync(c => c.Name == name);
+            var existing = await _context.Categories.FindAsync(id);
             if (existing is null) return NotFound();
 
             if (!string.Equals(existing.Name, dto.Name, StringComparison.Ordinal) &&
@@ -70,27 +81,14 @@ namespace Practice_2WebAPI.Controllers
             await _context.SaveChangesAsync();
             return NoContent();
         }
-        [HttpPatch("{name}")]
-        [Consumes("application/json")]
-        public async Task<IActionResult> Patch(string name, [FromBody] JsonPatchDocument<Category> patchDoc)
-        {
-            var category = await _context.Categories.FirstOrDefaultAsync(c => c.Name == name);
-            if (category is null) return NotFound();
 
-            patchDoc.ApplyTo(category, ModelState);
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-
-            await _context.SaveChangesAsync();
-            return NoContent();
-        }
-        [HttpDelete("{name}")]
-        [Consumes("application/json")]
+        [HttpDelete("{id:int}")]
         [SwaggerOperation(Summary = "Удалить категорию")]
-        public async Task<IActionResult> Delete(string name)
+        public async Task<IActionResult> Delete(int id)
         {
             var category = await _context.Categories
                 .Include(c => c.Products)
-                .FirstOrDefaultAsync(c => c.Name == name);
+                .FirstOrDefaultAsync(c => c.Id == id);
 
             if (category is null) return NotFound();
 

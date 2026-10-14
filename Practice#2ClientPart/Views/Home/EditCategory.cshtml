@@ -2,18 +2,15 @@
 
 @{
     ViewData["Title"] = "Редактирование категории";
-    var originalName = ViewBag.OriginalName as string ?? string.Empty;
+    var originalId = (int)(ViewBag.OriginalId ?? 0);
 }
 
 <h1 class="mb-4">Редактирование категории</h1>
-<p class="text-muted">Исходное имя: <strong>@originalName</strong></p>
+<p class="text-muted">ID: <strong>@originalId</strong></p>
 
 <div class="row">
     <div class="col-md-6">
-        <form asp-action="EditCategory"
-              asp-route-name="@originalName"
-              method="post">
-
+        <form asp-action="EditCategory" asp-route-id="@originalId" method="post">
             <div asp-validation-summary="ModelOnly" class="text-danger mb-2"></div>
 
             <div class="mb-3">

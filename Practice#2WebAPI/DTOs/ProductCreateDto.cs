@@ -11,7 +11,6 @@ namespace Practice_2WebAPI.DTOs
 
         public decimal Price { get; set; }
 
-        [Required]
-        public string CategoryName { get; set; } = string.Empty;
+        public int CategoryId { get; set; }
     }
 }

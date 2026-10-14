@@ -4,6 +4,7 @@
     ViewData["Title"] = "Каталог категорий";
     var searchName = ViewBag.SearchName as string;
 }
+
 @if (TempData["Error"] != null)
 {
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -11,13 +12,16 @@
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Закрыть"></button>
     </div>
 }
-
 @if (TempData["Success"] != null)
 {
     <div class="alert alert-success alert-dismissible fade show" role="alert">
         @TempData["Success"]
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Закрыть"></button>
     </div>
+}
+@if (ViewBag.Error != null)
+{
+    <div class="alert alert-danger">@ViewBag.Error</div>
 }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -27,11 +31,8 @@
 
 <form asp-action="Index" method="get" class="row g-2 mb-4">
     <div class="col-md-6">
-        <input type="text"
-               name="name"
-               value="@searchName"
-               class="form-control"
-               placeholder="Поиск категории по имени (точное совпадение)" />
+        <input type="text" name="name" value="@searchName" class="form-control"
+               placeholder="Поиск категории по имени (частичное совпадение)" />
     </div>
     <div class="col-auto">
         <button type="submit" class="btn btn-primary">Найти</button>
@@ -46,9 +47,7 @@
 
 @if (Model == null || !Model.Any())
 {
-    <div class="alert alert-info">
-        Категории не найдены или сервер недоступен.
-    </div>
+    <div class="alert alert-info">Категории не найдены.</div>
 }
 else
 {
@@ -59,7 +58,7 @@ else
                 <th>Название</th>
                 <th>Описание</th>
                 <th style="width: 120px;">Товаров</th>
-                <th style="width: 200px;">Действия</th>
+                <th style="width: 220px;">Действия</th>
             </tr>
         </thead>
         <tbody>
@@ -73,12 +72,13 @@ else
                     <td>
                         <a class="btn btn-sm btn-outline-warning"
                            asp-action="EditCategory"
-                           asp-route-name="@category.Name">Изменить</a>
+                           asp-route-id="@category.Id">Изменить</a>
+
                         <form asp-action="Delete"
-                            asp-route-name="@category.Name"
-                            method="post"
-                            class="d-inline"
-                            onsubmit="return confirm('Удалить категорию «@category.Name»?');">
+                              asp-route-id="@category.Id"
+                              method="post"
+                              class="d-inline"
+                              onsubmit="return confirm('Удалить категорию «@category.Name»?');">
                             <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
                         </form>
                     </td>

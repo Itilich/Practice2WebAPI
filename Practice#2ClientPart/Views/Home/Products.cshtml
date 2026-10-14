@@ -3,7 +3,9 @@
 @{
     ViewData["Title"] = "Каталог товаров";
     var searchName = ViewBag.SearchName as string;
-    var searchCategory = ViewBag.SearchCategory as string;
+    var searchCategoryId = ViewBag.SearchCategoryId as int?;
+    var categories = ViewBag.Categories as List<Practice_2ClientPart.Data.Category>
+                     ?? new List<Practice_2ClientPart.Data.Category>();
 }
 
 @if (TempData["Error"] != null)
@@ -30,13 +32,21 @@
                placeholder="Название товара (точное)" />
     </div>
     <div class="col-md-4">
-        <input type="text" name="categoryName" value="@searchCategory" class="form-control"
-               placeholder="Категория (точное)" />
+        <select name="categoryId" class="form-select">
+            <option value="">— Все категории —</option>
+            @foreach (var cat in categories)
+            {
+                <option value="@cat.Id"
+                        selected="@(searchCategoryId.HasValue && searchCategoryId.Value == cat.Id)">
+                    @cat.Name
+                </option>
+            }
+        </select>
     </div>
     <div class="col-auto">
         <button type="submit" class="btn btn-primary">Найти</button>
     </div>
-    @if (!string.IsNullOrWhiteSpace(searchName) || !string.IsNullOrWhiteSpace(searchCategory))
+    @if (!string.IsNullOrWhiteSpace(searchName) || searchCategoryId.HasValue)
     {
         <div class="col-auto">
             <a asp-action="Products" class="btn btn-outline-secondary">Сбросить</a>
@@ -69,7 +79,7 @@ else
                     <td><strong>@product.Name</strong></td>
                     <td>
                         <a asp-action="Products"
-                           asp-route-categoryName="@product.CategoryName"
+                           asp-route-categoryId="@product.CategoryId"
                            class="badge bg-secondary text-decoration-none">
                             @product.CategoryName
                         </a>
@@ -79,10 +89,10 @@ else
                     <td>
                         <a class="btn btn-sm btn-outline-warning"
                            asp-action="EditProduct"
-                           asp-route-name="@product.Name">Изменить</a>
+                           asp-route-id="@product.Id">Изменить</a>
 
                         <form asp-action="DeleteProduct"
-                              asp-route-name="@product.Name"
+                              asp-route-id="@product.Id"
                               method="post"
                               class="d-inline"
                               onsubmit="return confirm('Удалить товар «@product.Name»?');">

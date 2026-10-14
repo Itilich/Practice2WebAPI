@@ -1,105 +1,134 @@
 using Microsoft.AspNetCore.Mvc;
 using Practice_2ClientPart.Data;
 using Practice_2ClientPart.Models;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text.Json;
-using System.Xml.Linq;
 
 namespace Practice_2ClientPart.Controllers
 {
     public class HomeController : Controller
     {
         private readonly ILogger<HomeController> _logger;
+        private const string BaseAddress = "https://localhost:7210/api";
 
         public HomeController(ILogger<HomeController> logger)
         {
             _logger = logger;
         }
+
+        //КАТЕГОРИИ
         [HttpGet]
         public async Task<IActionResult> Index(string? name)
         {
             var httpClient = new HttpClient();
-            var url = string.IsNullOrWhiteSpace(name)? "https://localhost:7210/api/Category": $"https://localhost:7210/api/Category?name={Uri.EscapeDataString(name)}";
-            var response = await httpClient.GetAsync(url);
-            List<Category> responseData = new();
+            var response = await httpClient.GetAsync($"{BaseAddress}/Category");
+
+            List<Category> categories = new();
             if (response.IsSuccessStatusCode)
             {
                 var responseText = await response.Content.ReadAsStringAsync();
-                var jsonOptions = new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                };
-                responseData = JsonSerializer.Deserialize<List<Category>>(responseText, jsonOptions)
+                var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                categories = JsonSerializer.Deserialize<List<Category>>(responseText, jsonOptions)
                              ?? new List<Category>();
             }
             else
             {
                 ViewBag.Error = $"Сервер вернул ошибку {(int)response.StatusCode}.";
             }
+
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                categories = categories
+                    .Where(c => c.Name.Contains(name, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+
             ViewBag.SearchName = name;
-            return View(responseData);
+            return View(categories);
         }
+
         [HttpGet]
         public IActionResult NewCategory()
         {
             return View(new NewCategoryDto());
         }
+
         [HttpPost]
         public async Task<IActionResult> NewCategory(NewCategoryDto request)
         {
-            var httpClient = new HttpClient();
-            var response = await httpClient.PostAsJsonAsync("https://localhost:7210/api/Category", request);
+            if (!ModelState.IsValid)
+                return View(request);
 
-            return RedirectToAction(nameof(Index));
-        }
-        [HttpPost]
-        public async Task<IActionResult> Delete(string name)
-        {
             var httpClient = new HttpClient();
-            var response = await httpClient.DeleteAsync($"https://localhost:7210/api/Category/{Uri.EscapeDataString(name)}");
-            if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
-            {
-                TempData["Error"] =
-                    $"Невозможно удалить категорию «{name}» -  к ней привязаны товары. " +
-                    $"Сначала удалите или перенесите товары этой категории.";
-            }
-            return RedirectToAction(nameof(Index));
-        }
-        [HttpGet]
-        public async Task<IActionResult> EditCategory(string name)
-        {
-            var httpClient = new HttpClient();
-            var response = await httpClient.GetAsync($"https://localhost:7210/api/Category?name={Uri.EscapeDataString(name)}");
+            var response = await httpClient.PostAsJsonAsync($"{BaseAddress}/Category", request);
 
-            var responseText = await response.Content.ReadAsStringAsync();
-            var jsonOptions = new JsonSerializerOptions()
+            if (response.IsSuccessStatusCode)
             {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            };
-            var responseData = JsonSerializer.Deserialize<List<Category>>(responseText, jsonOptions);
-            var category = responseData?.FirstOrDefault();
-            if (category is null)
-            {
-                TempData["Error"] = $"Категория «{name}» не найдена.";
+                TempData["Success"] = $"Категория «{request.Name}» добавлена.";
                 return RedirectToAction(nameof(Index));
             }
+
+            if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                ModelState.AddModelError(nameof(request.Name),
+                    $"Категория с именем «{request.Name}» уже существует.");
+            }
+            else
+            {
+                var errorText = await response.Content.ReadAsStringAsync();
+                ModelState.AddModelError("", $"Ошибка {response.StatusCode}: {errorText}");
+            }
+
+            return View(request);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> EditCategory(int id)
+        {
+            var httpClient = new HttpClient();
+            var response = await httpClient.GetAsync($"{BaseAddress}/Category/{id}");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                TempData["Error"] = $"Не удалось загрузить категорию с ID {id}.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            var responseText = await response.Content.ReadAsStringAsync();
+            var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var category = JsonSerializer.Deserialize<Category>(responseText, jsonOptions);
+
+            if (category is null)
+            {
+                TempData["Error"] = $"Категория с ID {id} не найдена.";
+                return RedirectToAction(nameof(Index));
+            }
+
             var model = new NewCategoryDto
             {
                 Name = category.Name,
                 Description = category.Description
             };
 
+            ViewBag.OriginalId = id;
             return View(model);
         }
+
         [HttpPost]
-        public async Task<IActionResult> EditCategory(string name, NewCategoryDto request)
+        public async Task<IActionResult> EditCategory(int id, NewCategoryDto request)
         {
+            if (!ModelState.IsValid)
+            {
+                ViewBag.OriginalId = id;
+                return View(request);
+            }
+
             var httpClient = new HttpClient();
-            var response = await httpClient.PutAsJsonAsync($"https://localhost:7210/api/Category/{Uri.EscapeDataString(name)}",request);
+            var response = await httpClient.PutAsJsonAsync($"{BaseAddress}/Category/{id}", request);
+
             if (response.IsSuccessStatusCode)
             {
-                TempData["Success"] = $"Категория «{request.Name}» успешно обновлена.";
+                TempData["Success"] = $"Категория «{request.Name}» обновлена.";
                 return RedirectToAction(nameof(Index));
             }
 
@@ -110,7 +139,7 @@ namespace Practice_2ClientPart.Controllers
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
-                TempData["Error"] = $"Категория «{name}» не найдена.";
+                TempData["Error"] = $"Категория с ID {id} не найдена.";
                 return RedirectToAction(nameof(Index));
             }
             else
@@ -118,25 +147,61 @@ namespace Practice_2ClientPart.Controllers
                 var errorText = await response.Content.ReadAsStringAsync();
                 ModelState.AddModelError("", $"Ошибка {response.StatusCode}: {errorText}");
             }
-            ViewBag.OriginalName = name;
+
+            ViewBag.OriginalId = id;
             return View(request);
         }
+
+        [HttpPost]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var httpClient = new HttpClient();
+            var response = await httpClient.DeleteAsync($"{BaseAddress}/Category/{id}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                TempData["Success"] = "Категория удалена.";
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                TempData["Error"] =
+                    "Невозможно удалить категорию — к ней привязаны товары. " +
+                    "Сначала удалите или перенесите товары этой категории.";
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                TempData["Error"] = $"Категория с ID {id} не найдена.";
+            }
+            else
+            {
+                var errorText = await response.Content.ReadAsStringAsync();
+                TempData["Error"] = $"Ошибка {response.StatusCode}: {errorText}";
+            }
+
+            return RedirectToAction(nameof(Index));
+        }
+
+        // ======================= ТОВАРЫ =======================
+
         [HttpGet]
-        public async Task<IActionResult> Products(string? name, string? categoryName)
+        public async Task<IActionResult> Products(string? name, int? categoryId)
         {
             var httpClient = new HttpClient();
 
             var query = new List<string>();
             if (!string.IsNullOrWhiteSpace(name))
                 query.Add($"name={Uri.EscapeDataString(name)}");
-            if (!string.IsNullOrWhiteSpace(categoryName))
-                query.Add($"categoryName={Uri.EscapeDataString(categoryName)}");
+            if (categoryId.HasValue)
+                query.Add($"categoryId={categoryId.Value}");
 
-            var url = "https://localhost:7210/api/Product";
+            var url = $"{BaseAddress}/Product";
             if (query.Any())
                 url += "?" + string.Join("&", query);
 
             List<Product> products = new();
+
+            try
+            {
                 var response = await httpClient.GetAsync(url);
                 if (response.IsSuccessStatusCode)
                 {
@@ -149,35 +214,79 @@ namespace Practice_2ClientPart.Controllers
                 {
                     ViewBag.Error = $"Сервер вернул ошибку {(int)response.StatusCode}.";
                 }
-            
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogError(ex, "API недоступен");
+                ViewBag.Error = "Сервер недоступен.";
+            }
 
+            ViewBag.Categories = await LoadCategoriesAsync();
             ViewBag.SearchName = name;
-            ViewBag.SearchCategory = categoryName;
+            ViewBag.SearchCategoryId = categoryId;
 
             return View(products);
         }
-        
+
         [HttpGet]
-        public async Task<IActionResult> EditProduct(string name)
+        public async Task<IActionResult> NewProduct()
+        {
+            ViewBag.Categories = await LoadCategoriesAsync();
+            return View(new NewProductDto());
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> NewProduct(NewProductDto request)
+        {
+            if (!ModelState.IsValid)
+            {
+                ViewBag.Categories = await LoadCategoriesAsync();
+                return View(request);
+            }
+
+            var httpClient = new HttpClient();
+            var response = await httpClient.PostAsJsonAsync($"{BaseAddress}/Product", request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                TempData["Success"] = $"Товар «{request.Name}» добавлен.";
+                return RedirectToAction(nameof(Products));
+            }
+
+            if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                ModelState.AddModelError(nameof(request.Name),
+                    $"Товар с именем «{request.Name}» уже существует.");
+            }
+            else
+            {
+                var errorText = await response.Content.ReadAsStringAsync();
+                ModelState.AddModelError("", $"Ошибка {response.StatusCode}: {errorText}");
+            }
+
+            ViewBag.Categories = await LoadCategoriesAsync();
+            return View(request);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> EditProduct(int id)
         {
             var httpClient = new HttpClient();
-            var response = await httpClient.GetAsync(
-                $"https://localhost:7210/api/Product?name={Uri.EscapeDataString(name)}");
+            var response = await httpClient.GetAsync($"{BaseAddress}/Product/{id}");
 
             if (!response.IsSuccessStatusCode)
             {
-                TempData["Error"] = $"Не удалось загрузить товар «{name}».";
+                TempData["Error"] = $"Не удалось загрузить товар с ID {id}.";
                 return RedirectToAction(nameof(Products));
             }
 
             var responseText = await response.Content.ReadAsStringAsync();
             var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            var list = JsonSerializer.Deserialize<List<Product>>(responseText, jsonOptions);
-            var product = list?.FirstOrDefault();
+            var product = JsonSerializer.Deserialize<Product>(responseText, jsonOptions);
 
             if (product is null)
             {
-                TempData["Error"] = $"Товар «{name}» не найден.";
+                TempData["Error"] = $"Товар с ID {id} не найден.";
                 return RedirectToAction(nameof(Products));
             }
 
@@ -186,109 +295,98 @@ namespace Practice_2ClientPart.Controllers
                 Name = product.Name,
                 Description = product.Description,
                 Price = product.Price,
-                CategoryName = product.CategoryName
+                CategoryId = product.CategoryId
             };
 
-            ViewBag.OriginalName = name;
+            ViewBag.OriginalId = id;
+            ViewBag.Categories = await LoadCategoriesAsync();
             return View(model);
         }
+
         [HttpPost]
-        public async Task<IActionResult> EditProduct(string name, NewProductDto request)
+        public async Task<IActionResult> EditProduct(int id, NewProductDto request)
         {
             if (!ModelState.IsValid)
             {
-                ViewBag.OriginalName = name;
+                ViewBag.OriginalId = id;
+                ViewBag.Categories = await LoadCategoriesAsync();
                 return View(request);
             }
 
             var httpClient = new HttpClient();
-                var response = await httpClient.PutAsJsonAsync(
-                    $"https://localhost:7210/api/Product/{Uri.EscapeDataString(name)}",
-                    request);
+            var response = await httpClient.PutAsJsonAsync($"{BaseAddress}/Product/{id}", request);
 
-                if (response.IsSuccessStatusCode)
-                {
-                    TempData["Success"] = $"Товар «{request.Name}» обновлён.";
-                    return RedirectToAction(nameof(Products));
-                }
+            if (response.IsSuccessStatusCode)
+            {
+                TempData["Success"] = $"Товар «{request.Name}» обновлён.";
+                return RedirectToAction(nameof(Products));
+            }
 
-                if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
-                {
-                    ModelState.AddModelError(nameof(request.Name),
-                        $"Товар с именем «{request.Name}» уже существует.");
-                }
-                else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
-                {
-                    TempData["Error"] = $"Товар «{name}» не найден.";
-                    return RedirectToAction(nameof(Products));
-                }
-                else
-                {
-                    var errorText = await response.Content.ReadAsStringAsync();
-                    ModelState.AddModelError("", $"Ошибка {response.StatusCode}: {errorText}");
-                }
+            if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                ModelState.AddModelError(nameof(request.Name),
+                    $"Товар с именем «{request.Name}» уже существует.");
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                TempData["Error"] = $"Товар с ID {id} не найден.";
+                return RedirectToAction(nameof(Products));
+            }
+            else
+            {
+                var errorText = await response.Content.ReadAsStringAsync();
+                ModelState.AddModelError("", $"Ошибка {response.StatusCode}: {errorText}");
+            }
 
-            ViewBag.OriginalName = name;
+            ViewBag.OriginalId = id;
+            ViewBag.Categories = await LoadCategoriesAsync();
             return View(request);
         }
-        // === УДАЛЕНИЕ ===
+
         [HttpPost]
-        public async Task<IActionResult> DeleteProduct(string name)
+        public async Task<IActionResult> DeleteProduct(int id)
         {
             var httpClient = new HttpClient();
-                var response = await httpClient.DeleteAsync(
-                    $"https://localhost:7210/api/Product/{Uri.EscapeDataString(name)}");
+            var response = await httpClient.DeleteAsync($"{BaseAddress}/Product/{id}");
 
-                if (response.IsSuccessStatusCode)
-                {
-                    TempData["Success"] = $"Товар «{name}» удалён.";
-                }
-                else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
-                {
-                    TempData["Error"] = $"Товар «{name}» не найден.";
-                }
-                else
-                {
-                    var errorText = await response.Content.ReadAsStringAsync();
-                    TempData["Error"] = $"Не удалось удалить товар: {response.StatusCode}. {errorText}";
-                }
+            if (response.IsSuccessStatusCode)
+            {
+                TempData["Success"] = "Товар удалён.";
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                TempData["Error"] = $"Товар с ID {id} не найден.";
+            }
+            else
+            {
+                var errorText = await response.Content.ReadAsStringAsync();
+                TempData["Error"] = $"Не удалось удалить товар: {response.StatusCode}. {errorText}";
+            }
 
             return RedirectToAction(nameof(Products));
         }
-        [HttpGet]
-        public IActionResult NewProduct()
-        {
-            return View(new NewProductDto());
-        }
 
-        [HttpPost]
-        public async Task<IActionResult> NewProduct(NewProductDto request)
-        {
-            if (!ModelState.IsValid)
-                return View(request);
+        // ======================= ВСПОМОГАТЕЛЬНЫЕ =======================
 
+        private async Task<List<Category>> LoadCategoriesAsync()
+        {
             var httpClient = new HttpClient();
-                var response = await httpClient.PostAsJsonAsync(
-                    "https://localhost:7210/api/Product", request);
+            try
+            {
+                var response = await httpClient.GetAsync($"{BaseAddress}/Category");
+                if (!response.IsSuccessStatusCode) return new List<Category>();
 
-                if (response.IsSuccessStatusCode)
-                {
-                    TempData["Success"] = $"Товар «{request.Name}» добавлен.";
-                    return RedirectToAction(nameof(Products));
-                }
-
-                if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
-                {
-                    ModelState.AddModelError(nameof(request.Name),
-                        $"Товар с именем «{request.Name}» уже существует.");
-                }
-                else
-                {
-                    var errorText = await response.Content.ReadAsStringAsync();
-                    ModelState.AddModelError("", $"Ошибка {response.StatusCode}: {errorText}");
-                }
-            return View(request);
+                var json = await response.Content.ReadAsStringAsync();
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                return JsonSerializer.Deserialize<List<Category>>(json, options) ?? new List<Category>();
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogError(ex, "Не удалось загрузить категории");
+                return new List<Category>();
+            }
         }
+
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
         public IActionResult Error()
         {
