@@ -1,4 +1,4 @@
-﻿@model List<Practice_2ClientPart.Data.Category>
+@model List<Practice_2ClientPart.Data.Category>
 
 @{
     ViewData["Title"] = "Каталог категорий";
@@ -26,7 +26,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="mb-0">Каталог категорий</h1>
-    <a asp-action="NewCategory" class="btn btn-success">+ Добавить категорию</a>
+    @if (User.IsInRole("Admin")) { <a asp-action="NewCategory" class="btn btn-success">+ Добавить категорию</a> }
 </div>
 
 <form asp-action="Index" method="get" class="row g-2 mb-4">
@@ -58,7 +58,7 @@ else
                 <th>Название</th>
                 <th>Описание</th>
                 <th style="width: 120px;">Товаров</th>
-                <th style="width: 220px;">Действия</th>
+                @if (User.IsInRole("Admin")) { <th style="width: 220px;">Действия</th> }
             </tr>
         </thead>
         <tbody>
@@ -69,7 +69,7 @@ else
                     <td><strong>@category.Name</strong></td>
                     <td>@(string.IsNullOrWhiteSpace(category.Description) ? "—" : category.Description)</td>
                     <td>@(category.Products?.Count ?? 0)</td>
-                    <td>
+                    @if (User.IsInRole("Admin")) { <td>
                         <a class="btn btn-sm btn-outline-warning"
                            asp-action="EditCategory"
                            asp-route-id="@category.Id">Изменить</a>
@@ -81,7 +81,7 @@ else
                               onsubmit="return confirm('Удалить категорию «@category.Name»?');">
                             <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
                         </form>
-                    </td>
+                    </td> }
                 </tr>
             }
         </tbody>

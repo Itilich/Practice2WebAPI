@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Practice_2WebAPI.Data;
 using System;
 using System.Reflection;
+using Practice_2WebAPI.Security;
+using Microsoft.AspNetCore.Identity;
 
 namespace Practice_2WebAPI
 {
@@ -16,7 +18,8 @@ namespace Practice_2WebAPI
             builder.Services.AddDbContext<WebAPIContext>(options =>
                 options.UseSqlite(connectionString));
 
-            builder.Services.AddDbContext<WebAPIContext>();
+            builder.Services.AddAuthentication("Bearer").AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, TokenAuthenticationHandler>("Bearer", null);
+            builder.Services.AddAuthorization();
             // Add services to the container.
             builder.Services.AddControllers().AddNewtonsoftJson(options =>
             {
@@ -30,6 +33,19 @@ namespace Practice_2WebAPI
 
             var app = builder.Build();
 
+            using (var scope = app.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<WebAPIContext>();
+                db.Database.Migrate();
+                if (!db.Users.Any())
+                {
+                    var admin = new AppUser { Login = "admin", Role = "Admin" };
+                    admin.PasswordHash = new PasswordHasher<AppUser>().HashPassword(admin, "admin");
+                    db.Users.Add(admin);
+                    db.SaveChanges();
+                }
+            }
+
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
@@ -39,6 +55,7 @@ namespace Practice_2WebAPI
 
             app.UseHttpsRedirection();
 
+            app.UseAuthentication();
             app.UseAuthorization();
 
 

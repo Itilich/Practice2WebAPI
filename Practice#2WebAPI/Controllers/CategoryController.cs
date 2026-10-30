@@ -1,14 +1,16 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Practice_2WebAPI.Data;
 using Practice_2WebAPI.DTOs;
 using Swashbuckle.AspNetCore.Annotations;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Practice_2WebAPI.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
     [Produces("application/json")]
+    [Authorize]
     public class CategoryController : ControllerBase
     {
         private readonly WebAPIContext _context;
@@ -43,6 +45,7 @@ namespace Practice_2WebAPI.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         [Consumes("application/json")]
         [SwaggerOperation(Summary = "Создать категорию")]
         [ProducesResponseType(StatusCodes.Status201Created)]
@@ -65,6 +68,7 @@ namespace Practice_2WebAPI.Controllers
         }
 
         [HttpPut("{id:int}")]
+        [Authorize(Roles = "Admin")]
         [Consumes("application/json")]
         [SwaggerOperation(Summary = "Обновить категорию")]
         public async Task<IActionResult> Update(int id, [FromBody] CategoryCreateDto dto)
@@ -83,6 +87,7 @@ namespace Practice_2WebAPI.Controllers
         }
 
         [HttpDelete("{id:int}")]
+        [Authorize(Roles = "Admin")]
         [SwaggerOperation(Summary = "Удалить категорию")]
         public async Task<IActionResult> Delete(int id)
         {

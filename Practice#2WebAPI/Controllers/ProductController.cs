@@ -3,12 +3,14 @@ using Microsoft.EntityFrameworkCore;
 using Practice_2WebAPI.Data;
 using Practice_2WebAPI.DTOs;
 using Swashbuckle.AspNetCore.Annotations;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Practice_2WebAPI.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
     [Produces("application/json")]
+    [Authorize]
     public class ProductController : ControllerBase
     {
         private readonly WebAPIContext _context;
@@ -18,12 +20,12 @@ namespace Practice_2WebAPI.Controllers
             _context = context;
         }
 
-        /// <summary>Список товаров или один товар по ID.</summary>
+        /// <summary>РЎРїРёСЃРѕРє С‚РѕРІР°СЂРѕРІ РёР»Рё РѕРґРёРЅ С‚РѕРІР°СЂ РїРѕ ID.</summary>
         [HttpGet]
         [HttpGet("{id:int}")]
         [SwaggerOperation(
-            Summary = "Товары",
-            Description = "Без id — список с фильтрацией. С id — конкретный товар.")]
+            Summary = "РўРѕРІР°СЂС‹",
+            Description = "Р‘РµР· id вЂ” СЃРїРёСЃРѕРє СЃ С„РёР»СЊС‚СЂР°С†РёРµР№. РЎ id вЂ” РєРѕРЅРєСЂРµС‚РЅС‹Р№ С‚РѕРІР°СЂ.")]
         [ProducesResponseType(typeof(IEnumerable<ProductReadDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ProductReadDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -88,16 +90,17 @@ namespace Practice_2WebAPI.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         [Consumes("application/json")]
-        [SwaggerOperation(Summary = "Создать товар")]
+        [SwaggerOperation(Summary = "РЎРѕР·РґР°С‚СЊ С‚РѕРІР°СЂ")]
         public async Task<ActionResult<Product>> Create([FromBody] ProductCreateDto dto)
         {
             var categoryExists = await _context.Categories.AnyAsync(c => c.Id == dto.CategoryId);
             if (!categoryExists)
-                return BadRequest($"Категория с ID {dto.CategoryId} не существует.");
+                return BadRequest($"РљР°С‚РµРіРѕСЂРёСЏ СЃ ID {dto.CategoryId} РЅРµ СЃСѓС‰РµСЃС‚РІСѓРµС‚.");
 
             if (await _context.Products.AnyAsync(p => p.Name == dto.Name))
-                return Conflict($"Товар с именем '{dto.Name}' уже существует.");
+                return Conflict($"РўРѕРІР°СЂ СЃ РёРјРµРЅРµРј '{dto.Name}' СѓР¶Рµ СЃСѓС‰РµСЃС‚РІСѓРµС‚.");
 
             var product = new Product
             {
@@ -114,8 +117,9 @@ namespace Practice_2WebAPI.Controllers
         }
 
         [HttpPut("{id:int}")]
+        [Authorize(Roles = "Admin")]
         [Consumes("application/json")]
-        [SwaggerOperation(Summary = "Обновить товар")]
+        [SwaggerOperation(Summary = "РћР±РЅРѕРІРёС‚СЊ С‚РѕРІР°СЂ")]
         public async Task<IActionResult> Update(int id, [FromBody] ProductCreateDto dto)
         {
             var existing = await _context.Products.FindAsync(id);
@@ -123,11 +127,11 @@ namespace Practice_2WebAPI.Controllers
 
             var categoryExists = await _context.Categories.AnyAsync(c => c.Id == dto.CategoryId);
             if (!categoryExists)
-                return BadRequest($"Категория с ID {dto.CategoryId} не существует.");
+                return BadRequest($"РљР°С‚РµРіРѕСЂРёСЏ СЃ ID {dto.CategoryId} РЅРµ СЃСѓС‰РµСЃС‚РІСѓРµС‚.");
 
             if (!string.Equals(existing.Name, dto.Name, StringComparison.Ordinal) &&
                 await _context.Products.AnyAsync(p => p.Name == dto.Name))
-                return Conflict($"Товар с именем '{dto.Name}' уже существует.");
+                return Conflict($"РўРѕРІР°СЂ СЃ РёРјРµРЅРµРј '{dto.Name}' СѓР¶Рµ СЃСѓС‰РµСЃС‚РІСѓРµС‚.");
 
             existing.Name = dto.Name;
             existing.Description = dto.Description;
@@ -139,7 +143,8 @@ namespace Practice_2WebAPI.Controllers
         }
 
         [HttpDelete("{id:int}")]
-        [SwaggerOperation(Summary = "Удалить товар")]
+        [Authorize(Roles = "Admin")]
+        [SwaggerOperation(Summary = "РЈРґР°Р»РёС‚СЊ С‚РѕРІР°СЂ")]
         public async Task<IActionResult> Delete(int id)
         {
             var product = await _context.Products.FindAsync(id);

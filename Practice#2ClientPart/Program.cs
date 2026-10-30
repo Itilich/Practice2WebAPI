@@ -8,6 +8,12 @@ namespace Practice_2ClientPart
 
             // Add services to the container.
             builder.Services.AddControllersWithViews();
+            builder.Services.AddAuthentication("Cookies").AddCookie("Cookies", options =>
+            {
+                options.LoginPath = "/Home/Login";
+                options.AccessDeniedPath = "/Home/AccessDenied";
+            });
+            builder.Services.AddAuthorization();
 
             var app = builder.Build();
 
@@ -24,6 +30,7 @@ namespace Practice_2ClientPart
 
             app.UseRouting();
 
+            app.UseAuthentication();
             app.UseAuthorization();
 
             app.MapControllerRoute(
@@ -34,3 +41,4 @@ namespace Practice_2ClientPart
         }
     }
 }
+

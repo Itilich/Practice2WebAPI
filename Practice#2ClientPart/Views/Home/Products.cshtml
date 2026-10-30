@@ -1,4 +1,4 @@
-﻿@model List<Practice_2ClientPart.Data.Product>
+@model List<Practice_2ClientPart.Data.Product>
 
 @{
     ViewData["Title"] = "Каталог товаров";
@@ -23,7 +23,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="mb-0">Каталог товаров</h1>
-    <a asp-action="NewProduct" class="btn btn-success">+ Добавить товар</a>
+    @if (User.IsInRole("Admin")) { <a asp-action="NewProduct" class="btn btn-success">+ Добавить товар</a> }
 </div>
 
 <form asp-action="Products" method="get" class="row g-2 mb-4">
@@ -68,7 +68,7 @@ else
                 <th style="width: 200px;">Категория</th>
                 <th>Описание</th>
                 <th style="width: 120px;">Цена</th>
-                <th style="width: 260px;">Действия</th>
+                @if (User.IsInRole("Admin")) { <th style="width: 260px;">Действия</th> }
             </tr>
         </thead>
         <tbody>
@@ -77,13 +77,13 @@ else
                 <tr>
                     <td>@product.Id</td>
                     <td><strong>@product.Name</strong></td>
-                    <td>
+                    @if (User.IsInRole("Admin")) { <td>
                         <a asp-action="Products"
                            asp-route-categoryId="@product.CategoryId"
                            class="badge bg-secondary text-decoration-none">
                             @product.CategoryName
                         </a>
-                    </td>
+                    </td> }
                     <td>@(string.IsNullOrWhiteSpace(product.Description) ? "—" : product.Description)</td>
                     <td>@product.Price.ToString("N2") ₽</td>
                     <td>

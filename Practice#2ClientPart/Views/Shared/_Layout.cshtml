@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -25,6 +25,18 @@
                         <li class="nav-item">
                             <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Products">Продукты</a>
                         </li>
+                        @if (User.Identity?.IsAuthenticated == true && User.IsInRole("Admin"))
+                        {
+                            <li class="nav-item"><a class="nav-link text-dark" asp-controller="Home" asp-action="CreateUser">Создать пользователя</a></li>
+                        }
+                    </ul>
+                    <ul class="navbar-nav">
+                        @if (User.Identity?.IsAuthenticated == true)
+                        {
+                            <li class="nav-item"><span class="nav-link">@User.Identity.Name (@(User.IsInRole("Admin") ? "администратор" : "пользователь"))</span></li>
+                            <li class="nav-item"><form asp-controller="Home" asp-action="Logout" method="post"><button class="btn btn-link nav-link">Выйти</button></form></li>
+                        }
+                        else { <li class="nav-item"><a class="nav-link" asp-controller="Home" asp-action="Login">Войти</a></li> }
                     </ul>
                 </div>
             </div>
@@ -41,3 +53,4 @@
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>
+

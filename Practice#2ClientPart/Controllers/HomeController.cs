@@ -3,9 +3,14 @@ using Practice_2ClientPart.Data;
 using Practice_2ClientPart.Models;
 using System.Diagnostics;
 using System.Text.Json;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
+using System.Net.Http.Headers;
 
 namespace Practice_2ClientPart.Controllers
 {
+    [Authorize]
     public class HomeController : Controller
     {
         private readonly ILogger<HomeController> _logger;
@@ -16,11 +21,63 @@ namespace Practice_2ClientPart.Controllers
             _logger = logger;
         }
 
-        //КАТЕГОРИИ
+        [AllowAnonymous, HttpGet]
+        public IActionResult Login() => View();
+
+        [AllowAnonymous, HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> Login(string login, string password)
+        {
+            using var client = new HttpClient();
+            var response = await client.PostAsJsonAsync($"{BaseAddress}/Auth/login", new { Login = login, Password = password });
+            if (!response.IsSuccessStatusCode)
+            {
+                ModelState.AddModelError("", "РќРµРІРµСЂРЅС‹Р№ Р»РѕРіРёРЅ РёР»Рё РїР°СЂРѕР»СЊ.");
+                return View();
+            }
+            var result = await response.Content.ReadFromJsonAsync<LoginResult>();
+            var claims = new[] { new Claim(ClaimTypes.Name, result!.Login), new Claim(ClaimTypes.Role, result.Role), new Claim("access_token", result.Token) };
+            await HttpContext.SignInAsync("Cookies", new ClaimsPrincipal(new ClaimsIdentity(claims, "Cookies")));
+            return RedirectToAction(nameof(Index));
+        }
+
+        [AllowAnonymous]
+        public IActionResult AccessDenied() => View();
+
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> Logout()
+        {
+            await HttpContext.SignOutAsync("Cookies");
+            return RedirectToAction(nameof(Login));
+        }
+
+        [Authorize(Roles = "Admin"), HttpGet]
+        public IActionResult CreateUser() => View();
+
+        [Authorize(Roles = "Admin"), HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> CreateUser(string login, string password)
+        {
+            using var client = CreateApiClient();
+            var response = await client.PostAsJsonAsync($"{BaseAddress}/Auth/users", new { Login = login, Password = password });
+            if (response.IsSuccessStatusCode) { TempData["Success"] = "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ СЃРѕР·РґР°РЅ."; return RedirectToAction(nameof(CreateUser)); }
+            ModelState.AddModelError("", await response.Content.ReadAsStringAsync());
+            return View();
+        }
+
+        private HttpClient CreateApiClient()
+        {
+            var client = new HttpClient();
+            var token = User.FindFirst("access_token")?.Value;
+            if (!string.IsNullOrEmpty(token)) client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            return client;
+        }
+
+        private sealed record LoginResult(string Token, string Login, string Role);
+
+        // РљР°С‚РµРіРѕСЂРёРё
         [HttpGet]
         public async Task<IActionResult> Index(string? name)
         {
-            var httpClient = new HttpClient();
+            var httpClient = CreateApiClient();
             var response = await httpClient.GetAsync($"{BaseAddress}/Category");
 
             List<Category> categories = new();
@@ -33,7 +90,7 @@ namespace Practice_2ClientPart.Controllers
             }
             else
             {
-                ViewBag.Error = $"Сервер вернул ошибку {(int)response.StatusCode}.";
+                ViewBag.Error = $"РЎРµСЂРІРµСЂ РІРµСЂРЅСѓР» РѕС€РёР±РєСѓ {(int)response.StatusCode}.";
             }
 
             if (!string.IsNullOrWhiteSpace(name))
@@ -47,50 +104,50 @@ namespace Practice_2ClientPart.Controllers
             return View(categories);
         }
 
-        [HttpGet]
+        [Authorize(Roles = "Admin"), HttpGet]
         public IActionResult NewCategory()
         {
             return View(new NewCategoryDto());
         }
 
-        [HttpPost]
+        [Authorize(Roles = "Admin"), HttpPost]
         public async Task<IActionResult> NewCategory(NewCategoryDto request)
         {
             if (!ModelState.IsValid)
                 return View(request);
 
-            var httpClient = new HttpClient();
+            var httpClient = CreateApiClient();
             var response = await httpClient.PostAsJsonAsync($"{BaseAddress}/Category", request);
 
             if (response.IsSuccessStatusCode)
             {
-                TempData["Success"] = $"Категория «{request.Name}» добавлена.";
+                TempData["Success"] = $"РљР°С‚РµРіРѕСЂРёСЏ В«{request.Name}В» РґРѕР±Р°РІР»РµРЅР°.";
                 return RedirectToAction(nameof(Index));
             }
 
             if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
             {
                 ModelState.AddModelError(nameof(request.Name),
-                    $"Категория с именем «{request.Name}» уже существует.");
+                    $"РљР°С‚РµРіРѕСЂРёСЏ СЃ РёРјРµРЅРµРј В«{request.Name}В» СѓР¶Рµ СЃСѓС‰РµСЃС‚РІСѓРµС‚.");
             }
             else
             {
                 var errorText = await response.Content.ReadAsStringAsync();
-                ModelState.AddModelError("", $"Ошибка {response.StatusCode}: {errorText}");
+                ModelState.AddModelError("", $"РћС€РёР±РєР° {response.StatusCode}: {errorText}");
             }
 
             return View(request);
         }
 
-        [HttpGet]
+        [Authorize(Roles = "Admin"), HttpGet]
         public async Task<IActionResult> EditCategory(int id)
         {
-            var httpClient = new HttpClient();
+            var httpClient = CreateApiClient();
             var response = await httpClient.GetAsync($"{BaseAddress}/Category/{id}");
 
             if (!response.IsSuccessStatusCode)
             {
-                TempData["Error"] = $"Не удалось загрузить категорию с ID {id}.";
+                TempData["Error"] = $"РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РєР°С‚РµРіРѕСЂРёСЋ СЃ ID {id}.";
                 return RedirectToAction(nameof(Index));
             }
 
@@ -100,7 +157,7 @@ namespace Practice_2ClientPart.Controllers
 
             if (category is null)
             {
-                TempData["Error"] = $"Категория с ID {id} не найдена.";
+                TempData["Error"] = $"РљР°С‚РµРіРѕСЂРёСЏ СЃ ID {id} РЅРµ РЅР°Р№РґРµРЅР°.";
                 return RedirectToAction(nameof(Index));
             }
 
@@ -114,7 +171,7 @@ namespace Practice_2ClientPart.Controllers
             return View(model);
         }
 
-        [HttpPost]
+        [Authorize(Roles = "Admin"), HttpPost]
         public async Task<IActionResult> EditCategory(int id, NewCategoryDto request)
         {
             if (!ModelState.IsValid)
@@ -123,70 +180,70 @@ namespace Practice_2ClientPart.Controllers
                 return View(request);
             }
 
-            var httpClient = new HttpClient();
+            var httpClient = CreateApiClient();
             var response = await httpClient.PutAsJsonAsync($"{BaseAddress}/Category/{id}", request);
 
             if (response.IsSuccessStatusCode)
             {
-                TempData["Success"] = $"Категория «{request.Name}» обновлена.";
+                TempData["Success"] = $"РљР°С‚РµРіРѕСЂРёСЏ В«{request.Name}В» РѕР±РЅРѕРІР»РµРЅР°.";
                 return RedirectToAction(nameof(Index));
             }
 
             if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
             {
                 ModelState.AddModelError(nameof(request.Name),
-                    $"Категория с именем «{request.Name}» уже существует.");
+                    $"РљР°С‚РµРіРѕСЂРёСЏ СЃ РёРјРµРЅРµРј В«{request.Name}В» СѓР¶Рµ СЃСѓС‰РµСЃС‚РІСѓРµС‚.");
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
-                TempData["Error"] = $"Категория с ID {id} не найдена.";
+                TempData["Error"] = $"РљР°С‚РµРіРѕСЂРёСЏ СЃ ID {id} РЅРµ РЅР°Р№РґРµРЅР°.";
                 return RedirectToAction(nameof(Index));
             }
             else
             {
                 var errorText = await response.Content.ReadAsStringAsync();
-                ModelState.AddModelError("", $"Ошибка {response.StatusCode}: {errorText}");
+                ModelState.AddModelError("", $"РћС€РёР±РєР° {response.StatusCode}: {errorText}");
             }
 
             ViewBag.OriginalId = id;
             return View(request);
         }
 
-        [HttpPost]
+        [Authorize(Roles = "Admin"), HttpPost]
         public async Task<IActionResult> Delete(int id)
         {
-            var httpClient = new HttpClient();
+            var httpClient = CreateApiClient();
             var response = await httpClient.DeleteAsync($"{BaseAddress}/Category/{id}");
 
             if (response.IsSuccessStatusCode)
             {
-                TempData["Success"] = "Категория удалена.";
+                TempData["Success"] = "РљР°С‚РµРіРѕСЂРёСЏ СѓРґР°Р»РµРЅР°.";
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
             {
                 TempData["Error"] =
-                    "Невозможно удалить категорию — к ней привязаны товары. " +
-                    "Сначала удалите или перенесите товары этой категории.";
+                    "РќРµРІРѕР·РјРѕР¶РЅРѕ СѓРґР°Р»РёС‚СЊ РєР°С‚РµРіРѕСЂРёСЋ вЂ” Рє РЅРµР№ РїСЂРёРІСЏР·Р°РЅС‹ С‚РѕРІР°СЂС‹. " +
+                    "РЎРЅР°С‡Р°Р»Р° СѓРґР°Р»РёС‚Рµ РёР»Рё РїРµСЂРµРЅРµСЃРёС‚Рµ С‚РѕРІР°СЂС‹ СЌС‚РѕР№ РєР°С‚РµРіРѕСЂРёРё.";
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
-                TempData["Error"] = $"Категория с ID {id} не найдена.";
+                TempData["Error"] = $"РљР°С‚РµРіРѕСЂРёСЏ СЃ ID {id} РЅРµ РЅР°Р№РґРµРЅР°.";
             }
             else
             {
                 var errorText = await response.Content.ReadAsStringAsync();
-                TempData["Error"] = $"Ошибка {response.StatusCode}: {errorText}";
+                TempData["Error"] = $"РћС€РёР±РєР° {response.StatusCode}: {errorText}";
             }
 
             return RedirectToAction(nameof(Index));
         }
 
-        // ======================= ТОВАРЫ =======================
+        // ======================= РўРћР’РђР Р« =======================
 
         [HttpGet]
         public async Task<IActionResult> Products(string? name, int? categoryId)
         {
-            var httpClient = new HttpClient();
+            var httpClient = CreateApiClient();
 
             var query = new List<string>();
             if (!string.IsNullOrWhiteSpace(name))
@@ -212,13 +269,13 @@ namespace Practice_2ClientPart.Controllers
                 }
                 else
                 {
-                    ViewBag.Error = $"Сервер вернул ошибку {(int)response.StatusCode}.";
+                    ViewBag.Error = $"РЎРµСЂРІРµСЂ РІРµСЂРЅСѓР» РѕС€РёР±РєСѓ {(int)response.StatusCode}.";
                 }
             }
             catch (HttpRequestException ex)
             {
-                _logger.LogError(ex, "API недоступен");
-                ViewBag.Error = "Сервер недоступен.";
+                _logger.LogError(ex, "API РЅРµРґРѕСЃС‚СѓРїРµРЅ");
+                ViewBag.Error = "РЎРµСЂРІРµСЂ РЅРµРґРѕСЃС‚СѓРїРµРЅ.";
             }
 
             ViewBag.Categories = await LoadCategoriesAsync();
@@ -228,14 +285,14 @@ namespace Practice_2ClientPart.Controllers
             return View(products);
         }
 
-        [HttpGet]
+        [Authorize(Roles = "Admin"), HttpGet]
         public async Task<IActionResult> NewProduct()
         {
             ViewBag.Categories = await LoadCategoriesAsync();
             return View(new NewProductDto());
         }
 
-        [HttpPost]
+        [Authorize(Roles = "Admin"), HttpPost]
         public async Task<IActionResult> NewProduct(NewProductDto request)
         {
             if (!ModelState.IsValid)
@@ -244,39 +301,39 @@ namespace Practice_2ClientPart.Controllers
                 return View(request);
             }
 
-            var httpClient = new HttpClient();
+            var httpClient = CreateApiClient();
             var response = await httpClient.PostAsJsonAsync($"{BaseAddress}/Product", request);
 
             if (response.IsSuccessStatusCode)
             {
-                TempData["Success"] = $"Товар «{request.Name}» добавлен.";
+                TempData["Success"] = $"РўРѕРІР°СЂ В«{request.Name}В» РґРѕР±Р°РІР»РµРЅ.";
                 return RedirectToAction(nameof(Products));
             }
 
             if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
             {
                 ModelState.AddModelError(nameof(request.Name),
-                    $"Товар с именем «{request.Name}» уже существует.");
+                    $"РўРѕРІР°СЂ СЃ РёРјРµРЅРµРј В«{request.Name}В» СѓР¶Рµ СЃСѓС‰РµСЃС‚РІСѓРµС‚.");
             }
             else
             {
                 var errorText = await response.Content.ReadAsStringAsync();
-                ModelState.AddModelError("", $"Ошибка {response.StatusCode}: {errorText}");
+                ModelState.AddModelError("", $"РћС€РёР±РєР° {response.StatusCode}: {errorText}");
             }
 
             ViewBag.Categories = await LoadCategoriesAsync();
             return View(request);
         }
 
-        [HttpGet]
+        [Authorize(Roles = "Admin"), HttpGet]
         public async Task<IActionResult> EditProduct(int id)
         {
-            var httpClient = new HttpClient();
+            var httpClient = CreateApiClient();
             var response = await httpClient.GetAsync($"{BaseAddress}/Product/{id}");
 
             if (!response.IsSuccessStatusCode)
             {
-                TempData["Error"] = $"Не удалось загрузить товар с ID {id}.";
+                TempData["Error"] = $"РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ С‚РѕРІР°СЂ СЃ ID {id}.";
                 return RedirectToAction(nameof(Products));
             }
 
@@ -286,7 +343,7 @@ namespace Practice_2ClientPart.Controllers
 
             if (product is null)
             {
-                TempData["Error"] = $"Товар с ID {id} не найден.";
+                TempData["Error"] = $"РўРѕРІР°СЂ СЃ ID {id} РЅРµ РЅР°Р№РґРµРЅ.";
                 return RedirectToAction(nameof(Products));
             }
 
@@ -303,7 +360,7 @@ namespace Practice_2ClientPart.Controllers
             return View(model);
         }
 
-        [HttpPost]
+        [Authorize(Roles = "Admin"), HttpPost]
         public async Task<IActionResult> EditProduct(int id, NewProductDto request)
         {
             if (!ModelState.IsValid)
@@ -313,29 +370,29 @@ namespace Practice_2ClientPart.Controllers
                 return View(request);
             }
 
-            var httpClient = new HttpClient();
+            var httpClient = CreateApiClient();
             var response = await httpClient.PutAsJsonAsync($"{BaseAddress}/Product/{id}", request);
 
             if (response.IsSuccessStatusCode)
             {
-                TempData["Success"] = $"Товар «{request.Name}» обновлён.";
+                TempData["Success"] = $"РўРѕРІР°СЂ В«{request.Name}В» РѕР±РЅРѕРІР»С‘РЅ.";
                 return RedirectToAction(nameof(Products));
             }
 
             if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
             {
                 ModelState.AddModelError(nameof(request.Name),
-                    $"Товар с именем «{request.Name}» уже существует.");
+                    $"РўРѕРІР°СЂ СЃ РёРјРµРЅРµРј В«{request.Name}В» СѓР¶Рµ СЃСѓС‰РµСЃС‚РІСѓРµС‚.");
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
-                TempData["Error"] = $"Товар с ID {id} не найден.";
+                TempData["Error"] = $"РўРѕРІР°СЂ СЃ ID {id} РЅРµ РЅР°Р№РґРµРЅ.";
                 return RedirectToAction(nameof(Products));
             }
             else
             {
                 var errorText = await response.Content.ReadAsStringAsync();
-                ModelState.AddModelError("", $"Ошибка {response.StatusCode}: {errorText}");
+                ModelState.AddModelError("", $"РћС€РёР±РєР° {response.StatusCode}: {errorText}");
             }
 
             ViewBag.OriginalId = id;
@@ -343,34 +400,34 @@ namespace Practice_2ClientPart.Controllers
             return View(request);
         }
 
-        [HttpPost]
+        [Authorize(Roles = "Admin"), HttpPost]
         public async Task<IActionResult> DeleteProduct(int id)
         {
-            var httpClient = new HttpClient();
+            var httpClient = CreateApiClient();
             var response = await httpClient.DeleteAsync($"{BaseAddress}/Product/{id}");
 
             if (response.IsSuccessStatusCode)
             {
-                TempData["Success"] = "Товар удалён.";
+                TempData["Success"] = "РўРѕРІР°СЂ СѓРґР°Р»С‘РЅ.";
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
-                TempData["Error"] = $"Товар с ID {id} не найден.";
+                TempData["Error"] = $"РўРѕРІР°СЂ СЃ ID {id} РЅРµ РЅР°Р№РґРµРЅ.";
             }
             else
             {
                 var errorText = await response.Content.ReadAsStringAsync();
-                TempData["Error"] = $"Не удалось удалить товар: {response.StatusCode}. {errorText}";
+                TempData["Error"] = $"РќРµ СѓРґР°Р»РѕСЃСЊ СѓРґР°Р»РёС‚СЊ С‚РѕРІР°СЂ: {response.StatusCode}. {errorText}";
             }
 
             return RedirectToAction(nameof(Products));
         }
 
-        // ======================= ВСПОМОГАТЕЛЬНЫЕ =======================
+        // ======================= Р’РЎРџРћРњРћР“РђРўР•Р›Р¬РќР«Р• =======================
 
         private async Task<List<Category>> LoadCategoriesAsync()
         {
-            var httpClient = new HttpClient();
+            var httpClient = CreateApiClient();
             try
             {
                 var response = await httpClient.GetAsync($"{BaseAddress}/Category");
@@ -382,7 +439,7 @@ namespace Practice_2ClientPart.Controllers
             }
             catch (HttpRequestException ex)
             {
-                _logger.LogError(ex, "Не удалось загрузить категории");
+                _logger.LogError(ex, "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РєР°С‚РµРіРѕСЂРёРё");
                 return new List<Category>();
             }
         }
@@ -394,3 +451,4 @@ namespace Practice_2ClientPart.Controllers
         }
     }
 }
+
